@@ -97,8 +97,8 @@ uint32_t mpu_init(void)
         {0x01, MPU_REG_PWR_MGMT_1},     // Clock Source
         {0x00, MPU_REG_PWR_MGMT_2},     // Enable Acc & Gyro
         {CONFIG, MPU_REG_CONFIG},         // Use DLPF set Gyroscope bandwidth 184Hz, temperature bandwidth 188Hz
-        {0x18, MPU_REG_GYRO_CONFIG},    // +-2000dps
-        {0x08, MPU_REG_ACCEL_CONFIG},   // +-4G
+        {0x00, MPU_REG_GYRO_CONFIG},    // +-250dps
+        {0x00, MPU_REG_ACCEL_CONFIG},   // +-2G
         {0x09, MPU_REG_ACCEL_CONFIG_2}, // Set Acc Data Rates, Enable Acc LPF , Bandwidth 184Hz
         {0x30, MPU_REG_INT_PIN_CFG},    //
         //{0x40, MPU_REG_I2C_MST_CTRL},   // I2C Speed 348 kHz

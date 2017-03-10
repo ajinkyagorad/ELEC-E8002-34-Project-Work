@@ -72,7 +72,7 @@ ble_mpu_t m_mpu;
 bool start_accel_update_flag = false;
 
 APP_TIMER_DEF(m_timer_accel_update_id);
-#define TIMER_INTERVAL_ACCEL_UPDATE     APP_TIMER_TICKS(1000, APP_TIMER_PRESCALER) // 1000 ms intervals
+#define TIMER_INTERVAL_ACCEL_UPDATE     APP_TIMER_TICKS(50, APP_TIMER_PRESCALER) // 50 ms intervals
                                    
 /**@brief Callback function for asserts in the SoftDevice.
  *
@@ -92,6 +92,7 @@ void assert_nrf_callback(uint16_t line_num, const uint8_t * p_file_name)
 
 void timer_accel_update_handler(void * p_context)
 {
+	 
     start_accel_update_flag = true;
 }
 
@@ -550,7 +551,7 @@ int main(void)
     LEDS_CONFIGURE(LEDS_MASK);
 	LEDS_OFF(LEDS_MASK);
     uart_config();
-    printf("\033[2J\033[;HMPU BLE simple example. Compiled @ %s.\r\n", __TIME__);
+
 
     // Initialize.
     timers_init();
@@ -570,18 +571,19 @@ int main(void)
     APP_ERROR_CHECK(err_code);
     
     accel_values_t accel_values;
-
+		printf("\033[2J\033[;H x, y, z\r\n");
     // Enter main loop.
     for (;;)
     {
         power_manage();
+
         if(start_accel_update_flag == true)
         {
             mpu_read_accel(&accel_values);
-            printf("\033[2J\033[;HAccel: %05d, %05d, %05d\r\n", accel_values.x, accel_values.y, accel_values.z);
+            printf("%05d, %05d, %05d\r\n", accel_values.x, accel_values.y, accel_values.z);
             ble_mpu_update(&m_mpu, &accel_values);
             start_accel_update_flag = false;
-            nrf_gpio_pin_toggle(LED_4);
+            //nrf_gpio_pin_toggle(LED_4);
         }
     }
 }
