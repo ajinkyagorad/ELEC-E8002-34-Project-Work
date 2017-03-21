@@ -32,8 +32,8 @@
 #define CENTRAL_LINK_COUNT               0                                          /**<number of central links used by the application. When changing this number remember to adjust the RAM settings*/
 #define PERIPHERAL_LINK_COUNT            1                                          /**<number of peripheral links used by the application. When changing this number remember to adjust the RAM settings*/
 
-#define DEVICE_NAME                      "MPU BLE simple"                          /**< Name of device. Will be included in the advertising data. */
-#define MANUFACTURER_NAME                "NordicSemiconductor"                      /**< Manufacturer. Will be passed to Device Information Service. */
+#define DEVICE_NAME                      "HRM AALTO"                          /**< Name of device. Will be included in the advertising data. */
+#define MANUFACTURER_NAME                "AALTO University"                      /**< Manufacturer. Will be passed to Device Information Service. */
 #define APP_ADV_INTERVAL                 300                                        /**< The advertising interval (in units of 0.625 ms. This value corresponds to 25 ms). */
 #define APP_ADV_TIMEOUT_IN_SECONDS       180                                        /**< The advertising timeout in units of seconds. */
 
@@ -70,9 +70,10 @@ static uint16_t                          m_conn_handle = BLE_CONN_HANDLE_INVALID
 
 ble_mpu_t m_mpu;
 bool start_accel_update_flag = false;
-
+//gyro_values_t gyro_values[200];
+accel_values_t accel_values_data[200];
 APP_TIMER_DEF(m_timer_accel_update_id);
-#define TIMER_INTERVAL_ACCEL_UPDATE     APP_TIMER_TICKS(50, APP_TIMER_PRESCALER) // 50 ms intervals
+#define TIMER_INTERVAL_ACCEL_UPDATE     APP_TIMER_TICKS(10, APP_TIMER_PRESCALER) // 50 ms intervals
                                    
 /**@brief Callback function for asserts in the SoftDevice.
  *
@@ -542,6 +543,19 @@ void mpu_setup(void)
 }
 
 
+
+//20 seconds of accelerometer data
+void count_heart_rate_via_acceleration(accel_values_t accel_values)
+{
+    
+
+}
+
+void count_heart_rate_via_gyro()
+{
+    
+
+}
 /**@brief Function for application main entry.
  */
 int main(void)
@@ -569,9 +583,12 @@ int main(void)
     application_timers_start();
     err_code = ble_advertising_start(BLE_ADV_MODE_FAST);
     APP_ERROR_CHECK(err_code);
-    
+    gyro_values_t gyro_values;
     accel_values_t accel_values;
-		printf("\033[2J\033[;H x, y, z\r\n");
+	//	memset(accel_values_data,0,sizeof(accel_values_data))
+		printf("\033[2J\033[;H tick , ax, ay, az, gx, gy, gz\r\n");
+		
+		uint32_t tick = 0;
     // Enter main loop.
     for (;;)
     {
@@ -580,8 +597,11 @@ int main(void)
         if(start_accel_update_flag == true)
         {
             mpu_read_accel(&accel_values);
-            printf("%05d, %05d, %05d\r\n", accel_values.x, accel_values.y, accel_values.z);
-            ble_mpu_update(&m_mpu, &accel_values);
+					  mpu_read_gyro(&gyro_values);
+					
+					  printf("%05ul, %05d \r\n", tick++, accel_values.z);
+           // printf("%05ul, %05d, %05d, %05d, %05d, %05d, %05d \r\n", tick++, accel_values.x, accel_values.y, accel_values.z, gyro_values.x, gyro_values.y, gyro_values.z);
+           // ble_mpu_update(&m_mpu, &accel_values);
             start_accel_update_flag = false;
             //nrf_gpio_pin_toggle(LED_4);
         }
