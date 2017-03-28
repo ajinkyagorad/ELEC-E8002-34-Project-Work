@@ -5,15 +5,18 @@
   */
 
 #include "headers.h"
+#include "SEGGER_RTT.h"
+
 #define BPM_OFFSET 	1
 #define STRENGTH_OFFSET 	2
-#define TIMER_INTERVAL_ACCEL_UPDATE     APP_TIMER_TICKS(10, APP_TIMER_PRESCALER) // 10 ms intervals
+#define TIMER_INTERVAL_ACCEL_UPDATE     APP_TIMER_TICKS(5, APP_TIMER_PRESCALER) // 10 ms intervals
 
 
 extern void on_adv_evt(ble_adv_evt_t ble_adv_evt);
 extern void on_ble_evt(ble_evt_t * p_ble_evt);
 extern void ble_evt_dispatch(ble_evt_t * p_ble_evt);
 extern void sys_evt_dispatch(uint32_t sys_evt);
+extern void bsp_event_handler(bsp_event_t event);
 extern void ble_stack_init(void);
 extern void gap_params_init(void);
 extern void advertising_init(void);
@@ -22,17 +25,38 @@ extern void advertising_start(void);
 extern void mpu_setup(void);
 extern void uart_config(void);
 extern void sig_init(void);
-extern uint8_t sig_read_bpm(void);
+extern uint8_t sig_read_bpm(uint16_t tick);
+extern uint8_t sig_calculate_bpm();
 
 ble_advdata_t advdata;
 ble_advdata_manuf_data_t 				manuf_specific_data;
 uint8_t ad_data[3];
 
-bool start_accel_update_flag = false;
+bool bpm_update_flag = false;
+bool start_btn_flag = false;
 APP_TIMER_DEF(m_timer_accel_update_id);
+extern accel_values_t accel_values[SAMPLE_SIZE];
+uint16_t tick;
 
 
 
+/**@brief Function for starting timers.
+*/
+static void application_timers_start(void)
+{
+    uint32_t err_code;
+    err_code = app_timer_start(m_timer_accel_update_id, TIMER_INTERVAL_ACCEL_UPDATE, NULL);
+    APP_ERROR_CHECK(err_code);
+}
+
+/**@brief Function for starting timers.
+*/
+static void application_timers_stop(void)
+{
+    uint32_t err_code;
+    err_code = app_timer_stop(m_timer_accel_update_id);
+    APP_ERROR_CHECK(err_code);
+}
 
 
 /** 
@@ -40,7 +64,12 @@ APP_TIMER_DEF(m_timer_accel_update_id);
 */
 void timer_accel_update_handler(void * p_context)
 {
-    start_accel_update_flag = true;
+	  if(tick >=1024){
+				application_timers_stop();
+				bpm_update_flag = true;
+		}else{
+		    sig_read_bpm(tick++);
+		}
 }
 
 /**@brief Function for the Timer initialization.
@@ -58,14 +87,6 @@ static void timers_init(void)
     APP_ERROR_CHECK(err_code);
 }
 
-/**@brief Function for starting timers.
-*/
-static void application_timers_start(void)
-{
-    uint32_t err_code;
-    err_code = app_timer_start(m_timer_accel_update_id, TIMER_INTERVAL_ACCEL_UPDATE, NULL);
-    APP_ERROR_CHECK(err_code);
-}
 
 
 /**@brief Function for putting the chip into sleep mode.
@@ -96,7 +117,7 @@ int main(void)
 
     LEDS_CONFIGURE(LEDS_MASK);
 	  LEDS_OFF(LEDS_MASK);
-    uart_config();
+    //uart_config();
 
 
     // Initialize.
@@ -106,21 +127,40 @@ int main(void)
     advertising_init();
     mpu_setup();
     sig_init();
-
+	  uint32_t err_code = bsp_init(BSP_INIT_LED | BSP_INIT_BUTTONS,
+															 APP_TIMER_TICKS(100, APP_TIMER_PRESCALER),
+															 bsp_event_handler);
+    tick = 0;
+	
     // Start execution.
     application_timers_start();
 	  advertising_start();
-	
+	  int ii = 0;
+	  SEGGER_RTT_printf(0," start... \r\n");
+	  uint8_t * p_is_nested_critical_region = 0;
     for (;;)
     {
-        if(start_accel_update_flag == true)
+        if(bpm_update_flag == true)
         {
-            
-					  ad_data[BPM_OFFSET] = sig_read_bpm(); 
+				#ifdef INCLUDE_THIS
+					 sd_nvic_critical_region_enter(p_is_nested_critical_region);
+					  SEGGER_RTT_printf(0," ---------------------------------------------------------\r\n");
+						 for(ii = 0; ii < 1024; ii++){
+							 SEGGER_RTT_printf(0,"%d: %05d, %05d, %05d \r\n",ii, accel_values[ii].x, accel_values[ii].y, accel_values[ii].z);
+							 nrf_delay_ms(10);
+						 }
+						SEGGER_RTT_printf(0," ---------------------------end----------------------------\r\n");
+					 sd_nvic_critical_region_exit(0); 
+				#endif
+					 
+					  ad_data[BPM_OFFSET] = sig_calculate_bpm(); 
 					
 					  advertising_data_update();
 
-            start_accel_update_flag = false;
+					  tick = 0;
+					  application_timers_start();
+            bpm_update_flag = false;
+					  start_btn_flag = false;
         }
     }
 }

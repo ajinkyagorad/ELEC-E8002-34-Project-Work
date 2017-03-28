@@ -449,6 +449,26 @@
               <FileType>1</FileType>
               <FilePath>..\..\..\..\..\app_mpu.c</FilePath>
             </File>
+            <File>
+              <FileName>stackconfig.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\..\..\..\stackconfig.c</FilePath>
+            </File>
+            <File>
+              <FileName>event_handlers.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\..\..\..\event_handlers.c</FilePath>
+            </File>
+            <File>
+              <FileName>signal_processing.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\..\..\..\signal_processing.c</FilePath>
+            </File>
+            <File>
+              <FileName>uart.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\..\..\..\uart.c</FilePath>
+            </File>
           </Files>
         </Group>
         <Group>
@@ -2024,6 +2044,26 @@
               <FileName>app_mpu.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\..\..\..\..\app_mpu.c</FilePath>
+            </File>
+            <File>
+              <FileName>stackconfig.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\..\..\..\stackconfig.c</FilePath>
+            </File>
+            <File>
+              <FileName>event_handlers.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\..\..\..\event_handlers.c</FilePath>
+            </File>
+            <File>
+              <FileName>signal_processing.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\..\..\..\signal_processing.c</FilePath>
+            </File>
+            <File>
+              <FileName>uart.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\..\..\..\uart.c</FilePath>
             </File>
           </Files>
         </Group>

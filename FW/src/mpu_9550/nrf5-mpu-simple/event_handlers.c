@@ -1,6 +1,7 @@
 #include "headers.h"
 
-extern bool start_accel_update_flag;
+extern bool bpm_update_flag;
+extern bool start_btn_flag;
 extern void sleep_mode_enter(void);
 
 
@@ -13,9 +14,13 @@ extern void sleep_mode_enter(void);
 void bsp_event_handler(bsp_event_t event)
 {
     uint32_t err_code;
+	  printf(" event %d \r\n",event);
     switch (event)
     {
-
+			  case BSP_EVENT_KEY_0:
+					start_btn_flag ^=1;
+				  printf(" start flag set %d \r\n",start_btn_flag);
+				break;
         case BSP_EVENT_ADVERTISING_START:
             err_code = bsp_indication_set(BSP_INDICATE_ADVERTISING);
 						APP_ERROR_CHECK(err_code);

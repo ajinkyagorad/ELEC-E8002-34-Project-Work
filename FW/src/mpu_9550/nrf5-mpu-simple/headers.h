@@ -22,6 +22,7 @@
 #include "app_uart.h"
 #include "app_mpu.h"
 #include "ble_mpu.h"
+#include "nrf_delay.h"
 
 
 #define IS_SRVC_CHANGED_CHARACT_PRESENT  1                                          /**< Include or not the service_changed characteristic. if not enabled, the server's database cannot be changed for the lifetime of the device*/
@@ -58,6 +59,7 @@
 
 #define DEAD_BEEF                        0xDEADBEEF                                 /**< Value used as error code on stack dump, can be used to identify stack location on stack unwind. */
 
+#define SAMPLE_SIZE  1024
 
 #endif
 
