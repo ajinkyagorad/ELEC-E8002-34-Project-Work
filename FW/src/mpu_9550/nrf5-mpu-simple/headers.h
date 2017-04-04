@@ -59,7 +59,7 @@
 
 #define DEAD_BEEF                        0xDEADBEEF                                 /**< Value used as error code on stack dump, can be used to identify stack location on stack unwind. */
 
-#define SAMPLE_SIZE  1024
+#define SAMPLE_SIZE  400
 
 #endif
 
