@@ -64,7 +64,7 @@ static void application_timers_stop(void)
 */
 void timer_accel_update_handler(void * p_context)
 {
-	  if(tick >=400){
+	  if(tick >=1024){
 				application_timers_stop();
 				bpm_update_flag = true;
 		}else{
@@ -117,7 +117,7 @@ int main(void)
 
     LEDS_CONFIGURE(LEDS_MASK);
 	  LEDS_OFF(LEDS_MASK);
-    uart_config();
+    //uart_config();
 
 
     // Initialize.
@@ -136,15 +136,14 @@ int main(void)
     application_timers_start();
 	  advertising_start();
 	  int ii = 0;
-	  printf(" start... \r\n");
+	  SEGGER_RTT_printf(0," start... \r\n");
 	  uint8_t * p_is_nested_critical_region = 0;
-
     for (;;)
     {
         if(bpm_update_flag == true)
         {
 				#ifdef INCLUDE_THIS
-					sd_nvic_critical_region_enter(p_is_nested_critical_region);
+					 sd_nvic_critical_region_enter(p_is_nested_critical_region);
 					  SEGGER_RTT_printf(0," ---------------------------------------------------------\r\n");
 						 for(ii = 0; ii < 1024; ii++){
 							 SEGGER_RTT_printf(0,"%d: %05d, %05d, %05d \r\n",ii, accel_values[ii].x, accel_values[ii].y, accel_values[ii].z);
@@ -155,7 +154,7 @@ int main(void)
 				#endif
 					 
 					  ad_data[BPM_OFFSET] = sig_calculate_bpm(); 
-					   printf(" bpm : %d\r\n", ad_data[BPM_OFFSET]);
+					
 					  advertising_data_update();
 
 					  tick = 0;

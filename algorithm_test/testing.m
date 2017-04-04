@@ -71,7 +71,7 @@
     subplot(2,1,2);
     plot(T,Z);
     
-    L = 400
+    L = 300
     F = fft(Rf);
     
     
