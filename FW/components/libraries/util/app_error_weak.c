@@ -32,7 +32,7 @@ __WEAK void app_error_fault_handler(uint32_t id, uint32_t pc, uint32_t info)
 #ifdef BSP_DEFINES_ONLY
     LEDS_ON(LEDS_MASK);
 #else
-    UNUSED_VARIABLE(bsp_indication_set(BSP_INDICATE_FATAL_ERROR));
+   // UNUSED_VARIABLE(bsp_indication_set(BSP_INDICATE_FATAL_ERROR));
     // This call can be used for debug purposes during application development.
     // @note CAUTION: Activating this code will write the stack to flash on an error.
     //                This function should NOT be used in a final product.

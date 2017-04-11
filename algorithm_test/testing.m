@@ -1,6 +1,6 @@
 
 
-    A1 = csvread('testdata4.csv');
+    A1 = csvread('testdata6.csv');
 %    A1 = coeff * csvread('accelerometer_reading_for_about_1min_18sec_in_50ms_interval_device_status_on_chest.csv',1);
 
     
@@ -38,7 +38,7 @@
     Zf = filter(B_lp,A_lp,Zf);
     
     
-    R = sqrt(Xf.^2 + Yf.^2 + Zf.^2)
+    R = sqrt(Xf.^2 + Yf.^2 + Zf.^2);
     
     
     hp_order = 2;
@@ -71,12 +71,10 @@
     subplot(2,1,2);
     plot(T,Z);
     
-    L = 300
+    L = 400
     F = fft(Rf);
     
-    
-    
-    %Compute the two-sided spectrum P2. Then compute the single-sided spectrum P1 based on P2 and the even-valued signal length L.
+   
     P2 = abs(F);
     P1 = P2(1:L/2+1);
     P1(2:end-1) = 2*P1(2:end-1);
@@ -94,13 +92,163 @@
     bpm = frequency*60
     
     figure
+    findpeaks(Rf,T)
+    xlabel('time')
+    ylabel('Amp')
+    title('All Peaks')
     
-    year = T; 
-    relNums = Rf;
-    findpeaks(relNums,year)
-    xlabel('Year')
-    ylabel('Sunspot Number')
-    title('Find All Peaks')
+    
+    peak_magnitude(1:11) = 0;
+    peak_index(1:11) = 0;
+    peak_type(1:11) = 0;
+ 
+    max_th = 6e-3 ;
+    min_th = 1e-3;
+	
+	kk = 1;
+   
+	slop(1:L+1)= 0;
+
+	val_previous = Rf(1);
+    val_current = 0;
+ 
+        for ii = 1:L
+           
+        if Rf(ii) <  min_th || Rf(ii) >  max_th
+            continue;
+        end
+		val_current = Rf(ii);
+	  
+        
+        if (val_current-val_previous) > 0 
+            slop(ii)=1;
+        elseif (val_current-val_previous)<0 
+            slop(ii)=-1; 
+        else
+            slop(ii) = 0;
+        end
+    
+        if(slop(ii)==0 || slop(ii)*slop(ii-1) < 0)
+        if(ii == 1) 
+        continue;
+        end
+       
+        peak_index(kk) = ii;
+
+        if(slop(ii-1) > 0)
+         peak_magnitude(kk) = val_current;
+         peak_type(kk) = 1;
+        elseif(slop(ii-1) < 0)  %not happening
+          peak_magnitude(kk) = val_current;
+          peak_type(kk) = -1;
+           fprintf('wtf : ii %d, kk = %d   amp = %5f, T = %5f \n',ii,kk , peak_magnitude(kk), ii*dt)
+        else
+            continue;
+        end
+         fprintf('ii %d, kk = %d   amp = %5f, T = %5f \n',ii,kk , peak_magnitude(kk), ii*dt)
+        kk = kk + 1;
+        if(kk > 6)
+        break;
+        end
+			
+        end
+		
+		val_previous = val_current;
+        end
+	
+        
+        
+        cnt_slop = 0;
+    
+        peak_prob = 0;
+        
+        for ii = 1:kk
+            index = peak_index(ii)
+            for jj = 1:6   
+                if(index + jj < L)
+                    if(slop(index+jj) > 0)
+                        cnt_slop = cnt_slop + 1;
+                    end
+                end
+            end
+            fprintf('cnt slop : %d\n',cnt_slop)
+            if(cnt_slop  > 1)
+               for jj = ii:kk-1
+                   fprintf('filtring: jj %d, kk = %d   amp = %5f, T = %5f \n',jj,kk , peak_magnitude(jj), peak_index(jj)*dt)
+                   peak_index(jj) = peak_index(jj+1) ;
+                   peak_magnitude(jj) =  peak_magnitude(jj+1);
+                   peak_type(jj) =  peak_type(jj+1);
+               end
+                   kk = jj-1
+                   cnt_slop = 0;
+            end
+        end
+	
+	for ii = 1:kk
+        fprintf('filtered : ii %d, kk = %d   amp = %5f, T = %5f \n',ii,kk , peak_magnitude(ii), peak_index(ii)*dt)
+    end
+	
+	current_maxima = 0;
+    previous_maxima = -1;
+    current_minima = 0;
+    previous_minima = -1;
+    previous = -1;
+    count_diff = 1;
+    min_spacing = 40;
+    
+    difference(1:11) = 0;
+
+	 
+	  
+		
+	    for ii = 1:kk
+        if(peak_type(ii) == 1)
+           if(previous_maxima == -1)
+               previous_maxima = ii;
+               current_maxima = ii;
+               if(previous == -1)
+				previous  = ii;
+               end
+            continue;
+               
+           end
+           
+           current_maxima  = ii;
+           
+           if((peak_index(current_maxima) - peak_index(previous)) < min_spacing )
+                
+               if(peak_type(previous) ==1 && peak_magnitude(current_maxima) > peak_magnitude(previous) && difference(count_diff-1))
+                    difference(count_diff-1) = difference(count_diff-1) + peak_index(current_maxima) - peak_index(previous);
+                    previous_maxima = current_maxima;
+                    previous  = current_maxima;
+               end              
+             continue;
+          end
+             
+           difference(count_diff) = peak_index(current_maxima) - peak_index(previous_maxima)
+           count_diff = count_diff + 1;
+            
+           previous_maxima = current_maxima;
+           previous  = current_maxima;
+           
+          
+        else
+          fprintf('error -%d',peak_type(ii))
+        end
+        end
+    
+			 
+    cnt = 0;
+    gap = 0;
+    for ii = 1:10
+          if(difference(ii) > 0)
+             gap = gap + difference(ii); 
+             cnt = cnt + 1; 
+          end
+    end
+    
+    bpm = 200*cnt*60/gap
+    
     
     
     

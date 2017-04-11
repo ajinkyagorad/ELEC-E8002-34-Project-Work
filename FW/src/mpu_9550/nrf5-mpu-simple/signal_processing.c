@@ -2,6 +2,12 @@
 #include "SEGGER_RTT.h"
 #include <math.h>
 
+#define MIN_TH 1e-3
+#define MAX_TH 6e-3
+#define MAX_SLOP_SCAN 6
+#define MIN_SPECING 40
+#define MAX_SPECING 255
+ 
 typedef struct{
   double magnitude;
 	double index;
@@ -9,9 +15,9 @@ typedef struct{
 }pick_t;
 
 uint8_t bpm;
-int16_t buff_x[SAMPLE_SIZE];
-int16_t buff_y[SAMPLE_SIZE];
-int16_t buff_z[SAMPLE_SIZE];
+float buff_x[SAMPLE_SIZE];
+float buff_y[SAMPLE_SIZE];
+float buff_z[SAMPLE_SIZE];
 accel_values_t accel_values;
 
 /**@brief function initialize module parameters
@@ -27,16 +33,17 @@ void sig_init(void){
 void sig_read_bpm(uint16_t tick){
 	
 	mpu_read_accel(&accel_values);
-	buff_x[tick] = accel_values.x;
-	buff_y[tick] = accel_values.y;
-	buff_z[tick] = accel_values.z;
+	buff_x[tick] = ((float)accel_values.x)/16384.0f;
+	buff_y[tick] = ((float)accel_values.y)/16384.0f;
+	buff_z[tick] = ((float)accel_values.z)/16384.0f;
+	
 
 }
 
 // Referenced http://www-users.cs.york.ac.uk/~fisher/mkfilter/
-void sig_butterworth_filter_4_to_11(int16_t *data, double *result)
+void sig_butterworth_filter_4_to_11(float *data, double *result)
 {
-	int16_t* x;
+	float* x;
 	double* y;
 	x = data;y = result;
 	for(int n=0;n<4;n++)y[n]=(double)x[n];
@@ -125,23 +132,25 @@ double sig_get_min_th(pick_t *picks, uint8_t len){
 
 void sig_print(double *signal, int len){
 int ii;
-	for(ii = 0; ii < len; ii++)
-		printf("%.2f\r\n",signal[ii]);
-
+	for(ii = 0; ii < len; ii++){
+		printf("%.2f\r\n",(float)signal[ii]);
+    nrf_delay_ms(10);
+	}
 }
 
 
-uint8_t sig_calculate_bpm(void){
-			
+uint8_t sig_calculate_bpm(uint8_t* ad_data){
+	
+	int ii;		
   double Xf[SAMPLE_SIZE];
 	double R[SAMPLE_SIZE];
 	memset(Xf,0,sizeof(Xf));
   memset(R,0,sizeof(R));
-
+	
 	
   sig_butterworth_filter_4_to_11(buff_x, Xf);
 	sig_dot_x_acceleration(Xf,R);
-	
+
   memset(Xf,0,sizeof(Xf));
 	sig_butterworth_filter_4_to_11(buff_y, Xf);
 	sig_dot_x_acceleration(Xf,R);
@@ -150,27 +159,31 @@ uint8_t sig_calculate_bpm(void){
 	sig_butterworth_filter_4_to_11(buff_z, Xf);
 	sig_dot_x_acceleration(Xf,R);
 
-
 	sig_resultant_acceleration(R);
+	
+
 	memset(Xf,0,sizeof(Xf));
 	double * filtered_signal = Xf;
 
 	sig_butterworth_filter_0_66_to_2_5(R, filtered_signal);
+  //sig_print(filtered_signal, SAMPLE_SIZE);
 
 	pick_t pick[10]; 
 	memset(pick,0,sizeof(pick));
 	
-	int16_t ii,kk = 0;
+	int16_t kk = 0;
 	int8_t slop[SAMPLE_SIZE];
 	memset(slop,0,sizeof(slop));
 	double val_previous = filtered_signal[0], val_current = 0;
  
 	for(ii = 0; ii < SAMPLE_SIZE; ii++){
-		val_current = filtered_signal[ii];
-	  
-		slop[ii] = ((val_current-val_previous)>0)?1:(((val_current-val_previous)<0)?-1:0);
+		 if (filtered_signal[ii] <  MIN_TH || filtered_signal[ii] >  MAX_TH ) continue;
     
-		if(slop[ii]==0 || slop[ii]*slop[ii-1] < 0){
+		 val_current = filtered_signal[ii];
+	  
+		 slop[ii] = ((val_current-val_previous)>0)?1:(((val_current-val_previous)<0)?-1:0);
+    
+		 if(slop[ii]==0 || slop[ii]*slop[ii-1] < 0){
 			if(ii == 1) continue;
 			
 			pick[kk].index = ii;
@@ -182,95 +195,90 @@ uint8_t sig_calculate_bpm(void){
 			 pick[kk].magnitude = val_current;
 			 pick[kk].type = -1;
 			}else continue;
-			if(++kk >= 10)break;
+			if(++kk >= 8)break;
 			
 		}
 		
 		val_previous = val_current;
   }
 	
-	double max_th = sig_get_max_th(pick, kk);
-  double min_th = sig_get_min_th(pick, kk);
 	
+	
+	uint16_t cnt_slop = 0;
+	for(ii = 0; ii < kk; ii++){
+			uint16_t index = pick[ii].index;
+			int jj;
+			for(jj = 0; jj < MAX_SLOP_SCAN; jj++)   
+					if(index + jj < SAMPLE_SIZE)if(slop[index+jj] > 0)cnt_slop++;
+							
+			if(cnt_slop  > 1){
+				 for(jj = ii; jj < kk-1; jj++){
+						 pick[jj].index = pick[jj+1].index ;
+						 pick[jj].magnitude =  pick[jj+1].magnitude;
+						 pick[jj].type =  pick[jj].type;
+				 }
+						 kk = jj-1;
+						 cnt_slop = 0;
+			 }
+	}
+							 
+
 	
 	  int16_t  current_maxima = 0;
     int16_t  previous_maxima = -1;
-    int16_t  current_minima = 0;
-    int16_t  previous_minima = -1;
-    int16_t  previous = -1;
     uint16_t count_diff = 0;
     
     int16_t difference[10];
+
 	  memset(difference,0,sizeof(difference));
 	  
 		
 	    for(ii = 0; ii < kk; ii++){
-        if(pick[ii].type == 1 && pick[ii].magnitude > max_th){
+        if(pick[ii].type == 1){
            if(previous_maxima == -1){
                previous_maxima = ii;
                current_maxima = ii;
-               if(previous == -1)
-								 previous  = ii;
                continue;
 					 }
            
            current_maxima  = ii;
            
-           if((pick[current_maxima].index - pick[previous].index) < 40){
-                
-               if(pick[previous].type ==1 && pick[current_maxima].magnitude > pick[previous].magnitude && difference[count_diff-1]){
-                    difference[count_diff-1] += pick[current_maxima].index - pick[previous].index;
+           if((pick[current_maxima].index - pick[previous_maxima].index) < MIN_SPECING){
+               if(pick[previous_maxima].type ==1 && pick[current_maxima].magnitude > pick[previous_maxima].magnitude && difference[count_diff-1]){
+                    difference[count_diff-1] += pick[current_maxima].index - pick[previous_maxima].index;
                     previous_maxima = current_maxima;
-                    previous  = current_maxima;
                }
-              
+             continue;
+					 }
+					 
+					 if((pick[current_maxima].index - pick[previous_maxima].index) > MAX_SPECING){
+						 //TODO: not sure about this
+						    previous_maxima = current_maxima;
              continue;
 					 }
              
            difference[count_diff] = pick[current_maxima].index - pick[previous_maxima].index;
            count_diff = count_diff + 1;
             
-           previous_maxima = current_maxima;
-           previous  = current_maxima;
-           
+           previous_maxima = current_maxima;  
 				 }
-				 else if (pick[ii].type == -1 && pick[ii].magnitude < min_th){
+				 else if (pick[ii].type == -1){
             
-           if(previous_minima == -1){
-               previous_minima = ii;
-               current_minima = ii;
-               if(previous == -1)
-									previous  = ii;
-               continue;
-					 }
-           
-           current_minima = ii;
-           
-           if((pick[current_minima].index - pick[previous].index) < 40){
-                 if(pick[previous].type ==-1 && pick[current_minima].magnitude < pick[previous].magnitude && difference[count_diff-1]){
-                   difference[count_diff-1] +=  (pick[current_minima].index - pick[previous].index);
-                     previous_minima = current_minima;
-                     previous  = current_minima;
-                 }
-               
-             continue;
-					 }
-            
-           difference[count_diff] = pick[current_minima].index - pick[previous_minima].index;
-           count_diff = count_diff + 1;
-           previous_minima = current_minima;
-           previous  = current_minima;
+             ASSERT(pick[ii].type > 1)
 				 }
         
         
 			 }
     
 			 
-		double cnt = 0;
+		uint8_t cnt = 0;
     double gap = 0;
     for (ii = 0; ii < count_diff; ii++){
+			    
           if(difference[ii] > 0){
+						 *(ad_data + GAP_OFFSET + cnt) = difference[ii];
              gap += difference[ii]; cnt++; 
+						if(cnt > 2)break;
           }
 		}
 		

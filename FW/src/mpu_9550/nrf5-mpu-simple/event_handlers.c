@@ -13,7 +13,6 @@ extern void sleep_mode_enter(void);
  */
 void bsp_event_handler(bsp_event_t event)
 {
-    uint32_t err_code;
 	  printf(" event %d \r\n",event);
     switch (event)
     {
@@ -22,8 +21,7 @@ void bsp_event_handler(bsp_event_t event)
 				  printf(" start flag set %d \r\n",start_btn_flag);
 				break;
         case BSP_EVENT_ADVERTISING_START:
-            err_code = bsp_indication_set(BSP_INDICATE_ADVERTISING);
-						APP_ERROR_CHECK(err_code);
+
         break;
 				
 				case BSP_EVENT_ADVERTISING_STOP:
@@ -72,17 +70,15 @@ void on_ble_evt(ble_evt_t * p_ble_evt)
  */
 void on_adv_evt(ble_adv_evt_t ble_adv_evt)
 {
-    uint32_t err_code;
+
 
     switch (ble_adv_evt)
     {
 			  case BLE_ADV_EVT_DIRECTED:
-            err_code = bsp_indication_set(BSP_INDICATE_ADVERTISING);
-            APP_ERROR_CHECK(err_code);
+
             break;
         case BLE_ADV_EVT_FAST:
-            err_code = bsp_indication_set(BSP_INDICATE_ADVERTISING);
-            APP_ERROR_CHECK(err_code);
+
             break;
         case BLE_ADV_EVT_IDLE:
             sleep_mode_enter();
@@ -130,5 +126,5 @@ void sys_evt_dispatch(uint32_t sys_evt)
 
 void assert_nrf_callback(uint16_t line_num, const uint8_t * p_file_name)
 {
-    app_error_handler(DEAD_BEEF, line_num, p_file_name);
+    //app_error_handler(DEAD_BEEF, line_num, p_file_name);
 }
