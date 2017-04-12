@@ -18,7 +18,7 @@ uint8_t bpm;
 float buff_x[SAMPLE_SIZE];
 float buff_y[SAMPLE_SIZE];
 float buff_z[SAMPLE_SIZE];
-accel_values_t accel_values;
+gyro_values_t accel_values;
 
 /**@brief function initialize module parameters
  */
@@ -32,16 +32,16 @@ void sig_init(void){
  */
 void sig_read_bpm(uint16_t tick){
 	
-	mpu_read_accel(&accel_values);
-	buff_x[tick] = ((float)accel_values.x)/16384.0f;
-	buff_y[tick] = ((float)accel_values.y)/16384.0f;
-	buff_z[tick] = ((float)accel_values.z)/16384.0f;
+	mpu_read_gyro(&accel_values);
+	buff_x[tick] = ((float)accel_values.x);///16384.0f;
+	buff_y[tick] = ((float)accel_values.y);///16384.0f;
+	buff_z[tick] = ((float)accel_values.z);///16384.0f;
 	
 
 }
 
 // Referenced http://www-users.cs.york.ac.uk/~fisher/mkfilter/
-void sig_butterworth_filter_4_to_11(float *data, double *result)
+/*void sig_butterworth_filter_4_to_11(float *data, double *result)
 {
 	float* x;
 	double* y;
@@ -60,7 +60,69 @@ void sig_butterworth_filter_4_to_11(float *data, double *result)
 				 + (  3.6108197545 * y[n- 1]);
 			 }
 }
+*/
+void sig_butterworth_filter_4_to_11(float *X, double *Y)
+{
+	int j,k;
+	double dbuffer[5]={0,0,0,0,0};
+	static const double dv0[5] = { 0.0020805671354598072, 0.0,
+    -0.0041611342709196144, 0.0, 0.0020805671354598072 };
+	static const double dv1[5] = { 1.0, -3.8478114968688084, 5.5721601378375674,
+    -3.5994720753697242, 0.87521454825368439 };
 
+		 for (k = 0; k < 4; k++) {
+    dbuffer[k + 1] = 0.0;
+  }
+
+  for (j = 0; j < SAMPLE_SIZE; j++) {
+    for (k = 0; k < 4; k++) {
+      dbuffer[k] = dbuffer[k + 1];
+    }
+
+    dbuffer[4] = 0.0;
+    for (k = 0; k < 5; k++) {
+      dbuffer[k] += X[j] * dv0[k];
+    }
+
+    for (k = 0; k < 4; k++) {
+      dbuffer[k + 1] -= dbuffer[0] * dv1[k + 1];
+    }
+
+    Y[j] = dbuffer[0];
+  }
+}
+void sig_butterworth_filter_0_66_to_2_5(double*X, double *Y)
+{
+	int k,j;
+	double dbuffer[5];
+    static const double dv0[5] = { 0.0008023531890466889, 0.0,
+    -0.0016047063780933778, 0.0, 0.0008023531890466889 };
+
+  static const double dv1[5] = { 1.0, -3.9151028964225354, 5.7518393939858576,
+    -3.7582371566656905, 0.9215032055789143 };
+
+  for (k = 0; k < 4; k++) {
+    dbuffer[k + 1] = 0.0;
+  }
+
+  for (j = 0; j < 402; j++) {
+    for (k = 0; k < 4; k++) {
+      dbuffer[k] = dbuffer[k + 1];
+    }
+
+    dbuffer[4] = 0.0;
+    for (k = 0; k < 5; k++) {
+      dbuffer[k] += X[j] * dv0[k];
+    }
+
+    for (k = 0; k < 4; k++) {
+      dbuffer[k + 1] -= dbuffer[0] * dv1[k + 1];
+    }
+
+    Y[j] = dbuffer[0];
+  }
+}
+/*
 void sig_butterworth_filter_0_66_to_2_5(double*data, double *result)
 {
   //memcpy(result,data,400U *sizeof(result));
@@ -83,7 +145,7 @@ void sig_butterworth_filter_0_66_to_2_5(double*data, double *result)
 			 }
 	
 	
-}
+}*/
 void sig_dot_x_acceleration(double *x, double *R){
   int ii = 0;  
 	for(ii = 0; ii < SAMPLE_SIZE ; ii++)
@@ -166,7 +228,7 @@ uint8_t sig_calculate_bpm(uint8_t* ad_data){
 	double * filtered_signal = Xf;
 
 	sig_butterworth_filter_0_66_to_2_5(R, filtered_signal);
-  //sig_print(filtered_signal, SAMPLE_SIZE);
+  sig_print(filtered_signal, SAMPLE_SIZE);
 
 	pick_t pick[10]; 
 	memset(pick,0,sizeof(pick));
@@ -285,6 +347,15 @@ uint8_t sig_calculate_bpm(uint8_t* ad_data){
     return (count_diff > 0 && gap > 0)?round((cnt*60* 200)/(gap)):0xff;
 	
 }
+
+
+
+
+
+
+
+
+
 
 
 
