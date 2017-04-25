@@ -7,8 +7,9 @@
 #include "headers.h"
 #include "SEGGER_RTT.h"
 
-
-#define TIMER_INTERVAL_ACCEL_UPDATE     APP_TIMER_TICKS(4, APP_TIMER_PRESCALER) // 10 ms intervals
+#define BPM_OFFSET 	1
+#define STRENGTH_OFFSET 	2
+#define TIMER_INTERVAL_ACCEL_UPDATE     APP_TIMER_TICKS(5, APP_TIMER_PRESCALER) // 10 ms intervals
 
 
 extern void on_adv_evt(ble_adv_evt_t ble_adv_evt);
@@ -25,19 +26,16 @@ extern void mpu_setup(void);
 extern void uart_config(void);
 extern void sig_init(void);
 extern uint8_t sig_read_bpm(uint16_t tick);
-extern uint8_t sig_calculate_bpm(uint8_t* ad_data);
+extern uint8_t sig_calculate_bpm();
 
 ble_advdata_t advdata;
 ble_advdata_manuf_data_t 				manuf_specific_data;
-uint8_t ad_data[5];
+uint8_t ad_data[3];
 
 bool bpm_update_flag = false;
 bool start_btn_flag = false;
 APP_TIMER_DEF(m_timer_accel_update_id);
 extern accel_values_t accel_values[SAMPLE_SIZE];
-extern float buff_x[SAMPLE_SIZE];
-extern float buff_y[SAMPLE_SIZE];
-extern float buff_z[SAMPLE_SIZE];
 uint16_t tick;
 
 
@@ -66,7 +64,7 @@ static void application_timers_stop(void)
 */
 void timer_accel_update_handler(void * p_context)
 {
-	  if(tick >=SAMPLE_SIZE){
+	  if(tick >=1024){
 				application_timers_stop();
 				bpm_update_flag = true;
 		}else{
@@ -117,43 +115,47 @@ void sleep_mode_enter(void)
 int main(void)
 {
 
+    LEDS_CONFIGURE(LEDS_MASK);
+	  LEDS_OFF(LEDS_MASK);
+    //uart_config();
+
+
     // Initialize.
-	  uart_config();
     timers_init();
     ble_stack_init();
     gap_params_init();
     advertising_init();
     mpu_setup();
     sig_init();
-
+	  uint32_t err_code = bsp_init(BSP_INIT_LED | BSP_INIT_BUTTONS,
+															 APP_TIMER_TICKS(100, APP_TIMER_PRESCALER),
+															 bsp_event_handler);
     tick = 0;
 	
     // Start execution.
     application_timers_start();
 	  advertising_start();
-
-	  printf(" start... \r\n");
-
-
+	  int ii = 0;
+	  SEGGER_RTT_printf(0," start... \r\n");
+	  uint8_t * p_is_nested_critical_region = 0;
     for (;;)
     {
         if(bpm_update_flag == true)
         {
-	
 				#ifdef INCLUDE_THIS
-					  int ii = 0;
-					  printf(" ---------------------------------------------------------\r\n");
-						 for(ii = 0; ii < SAMPLE_SIZE; ii++){
-							 printf("%d, %5f, %5f, %5f \r\n",ii, buff_x[ii], buff_y[ii], buff_z[ii]);
+					 sd_nvic_critical_region_enter(p_is_nested_critical_region);
+					  SEGGER_RTT_printf(0," ---------------------------------------------------------\r\n");
+						 for(ii = 0; ii < 1024; ii++){
+							 SEGGER_RTT_printf(0,"%d: %05d, %05d, %05d \r\n",ii, accel_values[ii].x, accel_values[ii].y, accel_values[ii].z);
 							 nrf_delay_ms(10);
 						 }
-						printf(" ---------------------------end----------------------------\r\n");
-			
+						SEGGER_RTT_printf(0," ---------------------------end----------------------------\r\n");
+					 sd_nvic_critical_region_exit(0); 
 				#endif
-					  
-					  sig_calculate_bpm(ad_data); 
-		
-						advertising_data_update();
+					 
+					  ad_data[BPM_OFFSET] = sig_calculate_bpm(); 
+					
+					  advertising_data_update();
 
 					  tick = 0;
 					  application_timers_start();

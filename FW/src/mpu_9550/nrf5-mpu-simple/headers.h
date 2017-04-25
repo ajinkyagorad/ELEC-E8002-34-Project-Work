@@ -15,13 +15,10 @@
 #include "boards.h"
 #include "softdevice_handler.h"
 #include "app_timer.h"
-#include "device_manager.h"
-#include "pstorage.h"
 #include "app_trace.h"
 #include "bsp.h"
 #include "app_uart.h"
 #include "app_mpu.h"
-#include "ble_mpu.h"
 #include "nrf_delay.h"
 
 
@@ -61,5 +58,8 @@
 
 #define SAMPLE_SIZE  400
 
-#endif
+#define BPM_OFFSET 	1
+#define STRENGTH_OFFSET 	2
+#define GAP_OFFSET 0
 
+#endif

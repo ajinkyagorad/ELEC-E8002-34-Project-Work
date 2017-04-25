@@ -21,8 +21,7 @@ void advertising_start(void)
     err_code = sd_ble_gap_adv_start(&m_adv_params);
     APP_ERROR_CHECK(err_code);
 
-    err_code = bsp_indication_set(BSP_INDICATE_ADVERTISING);
-    APP_ERROR_CHECK(err_code);
+
 }
 
 /**@brief Function for initializing the Advertising functionality.
@@ -41,9 +40,6 @@ void advertising_init(void)
 		
 		memset(&manuf_specific_data, 0, sizeof(manuf_specific_data));
 	  memset(ad_data,0,sizeof(ad_data));
-	  *ad_data = DEVICE_ID;
-		ad_data[1] = 78;
-		ad_data[2] = 3;
     manuf_specific_data.data.p_data = ad_data;
     manuf_specific_data.data.size  = DEVICE_DATA_SIZE;
 		advdata.p_manuf_specific_data = &manuf_specific_data;

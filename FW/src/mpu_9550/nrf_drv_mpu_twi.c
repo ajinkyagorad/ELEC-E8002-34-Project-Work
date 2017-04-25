@@ -18,7 +18,7 @@
  */
 #if defined(BOARD_PCA10040)
 #define MPU_TWI_SCL_PIN 27
-#define MPU_TWI_SDA_PIN 2
+#define MPU_TWI_SDA_PIN 26
 #else
 #define MPU_TWI_SCL_PIN 1
 #define MPU_TWI_SDA_PIN 2
