@@ -7,7 +7,7 @@
 #define MIN_TH 1e-3
 #define MAX_TH 6e-3
 #else
-#define MIN_TH 2
+#define MIN_TH 3
 #define MAX_TH 500
 #endif
 #define SCAN_WINDOW 6
@@ -289,7 +289,8 @@ double sig_get_min_th(pick_t *picks, uint8_t len){
 void sig_print(double *signal, int len){
 int ii;
 	for(ii = 0; ii < len; ii++){
-		printf("%.2f\r\n",(float)signal[ii]);
+		//printf("%.2f,%.2f,%.2f,%.2f\r\n",buff_x[ii],buff_y[ii],buff_z[ii],signal[ii]/10000.0);// Divide to scale on plot
+		printf("%.2f\r\n",(double)signal[ii]);
     nrf_delay_ms(10);
 	}
 }
@@ -323,6 +324,7 @@ uint8_t sig_calculate_bpm(uint8_t* ad_data){
 	#else
 	#error "choose filter ";
 	#endif
+	
 	sig_dot_x_acceleration(Xf,R);
   memset(Xf,0,sizeof(Xf));
 	
@@ -458,7 +460,7 @@ uint8_t sig_calculate_bpm(uint8_t* ad_data){
               cnt_amp ++;					 
              
            difference[count_diff] = pick[current_maxima].index - pick[previous_maxima].index;
-					 printf("%d\r\n",difference[count_diff]);
+					//printf("%d\r\n",difference[count_diff]);
            count_diff = count_diff + 1;
             
            previous_maxima = current_maxima;  
