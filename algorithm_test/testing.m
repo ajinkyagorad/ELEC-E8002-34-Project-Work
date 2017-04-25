@@ -227,7 +227,8 @@
     previous_minima = -1;
     count_diff = 1;
 
-    
+     amp = 0;
+	 cnt_amp = 0;
     difference(1:11) = 0;
 	  
 		
@@ -246,12 +247,15 @@
                  fprintf('filtered : peak_index(current_maxima) %d, peak_index(previous_maxima) = %d   peak_type(current_maxima) = %d \n',peak_index(current_maxima),peak_index(previous_maxima) ,peak_type(current_maxima))
                if(peak_type(current_maxima) == 1 && peak_magnitude(current_maxima) > peak_magnitude(previous_maxima) && difference(count_diff-1))
                     difference(count_diff-1) = difference(count_diff-1) + peak_index(current_maxima) - peak_index(previous_maxima);
+                      amp = amp - peak_magnitude(previous_maxima) + peak_magnitude(current_maxima)
                       fprintf('filtered : difference(count_diff-1) %d\n',difference(count_diff-1))
                     previous_maxima = current_maxima;
                end              
              continue;
-          end
+           end
              
+           amp = amp + peak_magnitude(current_maxima)
+           cnt_amp =  cnt_amp + 1;
            difference(count_diff) = peak_index(current_maxima) - peak_index(previous_maxima)
            count_diff = count_diff + 1;
             
@@ -264,6 +268,7 @@
         end
         end
     
+   strength = amp/cnt_amp
 			 
     cnt = 0;
     gap = 0;

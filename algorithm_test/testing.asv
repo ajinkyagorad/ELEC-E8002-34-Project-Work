@@ -1,6 +1,6 @@
 
 
-    A1 = csvread('testdata4.csv');
+    A1 = csvread('testdata6.csv');
 %    A1 = coeff * csvread('accelerometer_reading_for_about_1min_18sec_in_50ms_interval_device_status_on_chest.csv',1);
 
     
@@ -104,7 +104,8 @@
  
     max_th = 100;
     min_th = 2;
-	
+	min_spacing = 50;
+     
 	kk = 1;
    
 	slop(1:L+1)= 0;
@@ -112,6 +113,7 @@
 	val_previous = Rf(1);
     val_current = 0;
     previous_index = 1;
+    
         for ii = 2:L
         
         if Rf(ii) <  min_th || Rf(ii) >  max_th    
@@ -201,9 +203,9 @@
             end
             fprintf('cnt slop m : %d, cnt slop p: %d \n', cnt_slop_m, cnt_slop_p)
             fprintf('filter #ii %d, index = %d ,  amp = %5f, T = %5f \n',ii, index , peak_magnitude(ii), index*dt)
-            fprintf('forward projection #peak_magnitude(jj) %d, peak_magnitude(jj+1) = %d ,  amp = %5f, T = %5f \n',peak_magnitude(jj), index , peak_magnitude(ii), index*dt)
+            fprintf('forward projection #peak_magnitude(jj) %d, peak_magnitude(jj+1) = %d \n',peak_magnitude(ii), peak_magnitude(ii+1))
             
-            if(cnt_slop_m  > 3 || cnt_slop_p  > 3 || ((peak_magnitude(jj) <  peak_magnitude(jj+1))&&((peak_index(jj+1) - peak_index(jj)) < min_spacing )))
+            if(cnt_slop_m  > 3 || cnt_slop_p  > 3 || ((peak_magnitude(ii) <  peak_magnitude(ii+1))&&((peak_index(ii+1) - peak_index(ii)) < min_spacing )))
                for jj = ii:kk
                    fprintf('filtring: jj %d, kk = %d   amp = %5f, T = %5f \n',jj,kk , peak_magnitude(jj), peak_index(jj)*dt)
                    peak_index(jj) = peak_index(jj+1) ;
@@ -224,8 +226,9 @@
     current_minima = 0;
     previous_minima = -1;
     count_diff = 1;
-    min_spacing = 50;
-    
+
+     amp = 0;
+	 cnt_amp = 0;
     difference(1:11) = 0;
 	  
 		
@@ -241,14 +244,18 @@
            current_maxima  = ii;
            
            if((peak_index(current_maxima) - peak_index(previous_maxima)) < min_spacing )
-                
-               if(peak_type(current_maxima) ==1 && peak_magnitude(current_maxima) > peak_magnitude(previous_maxima) && difference(count_diff-1))
+                 fprintf('filtered : peak_index(current_maxima) %d, peak_index(previous_maxima) = %d   peak_type(current_maxima) = %d \n',peak_index(current_maxima),peak_index(previous_maxima) ,peak_type(current_maxima))
+               if(peak_type(current_maxima) == 1 && peak_magnitude(current_maxima) > peak_magnitude(previous_maxima) && difference(count_diff-1))
                     difference(count_diff-1) = difference(count_diff-1) + peak_index(current_maxima) - peak_index(previous_maxima);
+                      amp = amp - peak_magnitude(previous_maxima) + peak_magnitude(current_maxima)
+                      fprintf('filtered : difference(count_diff-1) %d\n',difference(count_diff-1))
                     previous_maxima = current_maxima;
                end              
              continue;
-          end
+           end
              
+           amp = amp + peak_magnitude(current_maxima)
+            cnt_amp = ;
            difference(count_diff) = peak_index(current_maxima) - peak_index(previous_maxima)
            count_diff = count_diff + 1;
             

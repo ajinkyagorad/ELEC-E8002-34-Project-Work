@@ -8,9 +8,9 @@
 #define MAX_TH 6e-3
 #else
 #define MIN_TH 2
-#define MAX_TH 150
+#define MAX_TH 500
 #endif
-#define MAX_SLOP_SCAN 6
+#define SCAN_WINDOW 6
 #define MIN_SPECING 40
 #define MAX_SPECING 255
 
@@ -41,8 +41,7 @@ void sig_init(void){
 /**@brief Function calculates the current beat per minute value 
  */
 void sig_read_bpm(uint16_t tick){
-	
-	//mpu_read_accel(&accel_values);
+
 	#ifdef ACCEL
 	mpu_read_accel(&accel_values);
 	buff_x[tick] = ((float)accel_values.x)/16384.0f;
@@ -104,8 +103,8 @@ void sig_butterworth_filter_0_66_to_2_5(double*data, double *result)
 	
 }*/
 
-#define _1ST_STAGE_FILTER_4_TO_11
-#define _2ND_STAGE_FILTER_0_66_TO_2_5
+#define _1ST_STAGE_FILTER_MATLAB_4_TO_11
+#define _2ND_STAGE_FILTER_MATLAB_0_66_TO_2_5
 
 #ifdef _1ST_STAGE_FILTER_4_TO_11
 // Referenced http://www-users.cs.york.ac.uk/~fisher/mkfilter/
@@ -129,7 +128,7 @@ void sig_butterworth_filter_4_to_11(double *data, double *result)
 		 
 			 }
 }
-#elif defined(_1ST_STAGE_FILTER4_TO_22)
+#elif defined(_1ST_STAGE_FILTER_4_TO_22)
 void sig_butterworth_filter_4_to_22(double *data, double *result)
 {
 	double* x;
@@ -152,7 +151,7 @@ void sig_butterworth_filter_4_to_22(double *data, double *result)
 }
 
 #elif defined(_1ST_STAGE_FILTER_MATLAB_4_TO_11)
-void sig_butterworth_filter_4_to_11(float *X, double *Y)
+void sig_butterworth_filter_4_to_11(double *X, double *Y)
 {
 	int j,k;
 	double dbuffer[5]={0,0,0,0,0};
@@ -319,10 +318,10 @@ uint8_t sig_calculate_bpm(uint8_t* ad_data){
 		buff_x[ii] = buff_x[ii]- mean;
 	#if defined( _1ST_STAGE_FILTER_4_TO_11) || defined(_1ST_STAGE_FILTER_MATLAB_4_TO_11)
   sig_butterworth_filter_4_to_11(buff_x, Xf);
-	#elif defined( _1ST_STAGE_FILTER_4_TO_22)
+	#elif defined(_1ST_STAGE_FILTER_4_TO_22)
 	sig_butterworth_filter_4_to_22(buff_x, Xf);
 	#else
-	#error "choose filter " + __LINE__
+	#error "choose filter ";
 	#endif
 	sig_dot_x_acceleration(Xf,R);
   memset(Xf,0,sizeof(Xf));
@@ -369,7 +368,7 @@ uint8_t sig_calculate_bpm(uint8_t* ad_data){
 	double val_previous = filtered_signal[0], val_current = 0, previous_index = 0;
  
 	for(ii = 0; ii < SAMPLE_SIZE; ii++){
-		 if (filtered_signal[ii] <  MIN_TH || filtered_signal[ii] >  MAX_TH ) continue;
+		 if (filtered_signal[ii] <  MIN_TH /*|| filtered_signal[ii] >  MAX_TH*/ ) continue;
      if ((ii - previous_index)!=1){
 		      previous_index = ii;
 			    val_previous   = filtered_signal[ii]; 
@@ -380,19 +379,14 @@ uint8_t sig_calculate_bpm(uint8_t* ad_data){
 	  
 		 slop[ii] = ((val_current-val_previous)>0)?1:(((val_current-val_previous)<0)?-1:0);
     
-		 if(slop[ii]==0 || slop[ii]*slop[ii-1] < 0){
+		 if( slop[ii]<=0 && slop[ii-1] > 0){
 			if(ii == 1) continue;
 			
 			pick[kk].index = ii;
-			
-			if(slop[ii-1] > 0){
-			 pick[kk].magnitude = val_current;
-			 pick[kk].type = 1;
-			}else if(slop[ii-1] < 0){
-			 pick[kk].magnitude = val_current;
-			 pick[kk].type = -1;
-			}else continue;
-			if(++kk >= 8)break;
+			pick[kk].magnitude = val_current;
+			pick[kk].type = 1;
+			 
+			if(++kk >= 6)break;
 			
 		}
 		
@@ -407,12 +401,17 @@ uint8_t sig_calculate_bpm(uint8_t* ad_data){
 			uint16_t cnt_slop_p = 0;
 			uint16_t index = pick[ii].index;
 			int jj;
-			for(jj = 0; jj < MAX_SLOP_SCAN; jj++){   
+			for(jj = 0; jj < SCAN_WINDOW; jj++){   
 					if(index + jj < SAMPLE_SIZE)if(slop[index+jj] > 0)cnt_slop_m++;
 					if(index - jj >= 0)if(slop[index-jj] < 0)cnt_slop_p++;
 			}
 							
-			if(cnt_slop_m  > 3 || cnt_slop_p  > 3){
+			if(cnt_slop_m  > 3 
+				|| cnt_slop_p  > 3
+				||((ii<kk-1)
+			  &&(pick[ii].magnitude <  pick[ii+1].magnitude)
+			  &&((pick[ii+1].index - pick[ii].index) < MIN_SPECING ))
+			  ){
 				 for(jj = ii; jj < kk-1; jj++){
 						 pick[jj].index = pick[jj+1].index ;
 						 pick[jj].magnitude =  pick[jj+1].magnitude;
@@ -428,7 +427,9 @@ uint8_t sig_calculate_bpm(uint8_t* ad_data){
     int16_t  previous_maxima = -1;
     uint16_t count_diff = 0;
     
-    int16_t difference[10];
+    int16_t difference[5];
+	  double amp = 0;
+	  double cnt_amp = 0;
 
 	  memset(difference,0,sizeof(difference));
 	  
@@ -446,30 +447,31 @@ uint8_t sig_calculate_bpm(uint8_t* ad_data){
            if((pick[current_maxima].index - pick[previous_maxima].index) < MIN_SPECING){
                if(pick[previous_maxima].type ==1 && pick[current_maxima].magnitude > pick[previous_maxima].magnitude && difference[count_diff-1]){
                     difference[count_diff-1] += pick[current_maxima].index - pick[previous_maxima].index;
+								    amp -= pick[previous_maxima].magnitude;
+								    amp += pick[current_maxima].magnitude;
                     previous_maxima = current_maxima;
                }
              continue;
 					 }
 					 
-					 if((pick[current_maxima].index - pick[previous_maxima].index) > MAX_SPECING){
-						 //TODO: not sure about this
-						    previous_maxima = current_maxima;
-             continue;
-					 }
+				      amp += pick[current_maxima].magnitude;
+              cnt_amp ++;					 
              
            difference[count_diff] = pick[current_maxima].index - pick[previous_maxima].index;
+					 printf("%d\r\n",difference[count_diff]);
            count_diff = count_diff + 1;
             
            previous_maxima = current_maxima;  
 				 }
 				 else if (pick[ii].type == -1){
             
-             ASSERT(pick[ii].type > 1)
+             ASSERT(pick[ii].type > 0)
 				 }
         
         
 			 }
     
+	  *(ad_data + STRENGTH_OFFSET) = (uint8_t)(amp/cnt_amp);
 			 
 		uint8_t cnt = 0;
     double gap = 0;

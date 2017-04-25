@@ -139,7 +139,7 @@ int main(void)
     {
         if(bpm_update_flag == true)
         {
-			 #define INCLUDE_THIS
+	
 				#ifdef INCLUDE_THIS
 					  int ii = 0;
 					  printf(" ---------------------------------------------------------\r\n");
