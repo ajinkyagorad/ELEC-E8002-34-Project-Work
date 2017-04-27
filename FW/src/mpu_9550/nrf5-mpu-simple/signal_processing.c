@@ -2,7 +2,7 @@
 #include "SEGGER_RTT.h"
 #include <math.h>
 
-//#define ACCEL
+#define ACCEL
 #ifdef ACCEL
 #define MIN_TH 1e-3
 #define MAX_TH 6e-3
@@ -44,9 +44,9 @@ void sig_read_bpm(uint16_t tick){
 
 	#ifdef ACCEL
 	mpu_read_accel(&accel_values);
-	buff_x[tick] = ((float)accel_values.x)/16384.0f;
-	buff_y[tick] = ((float)accel_values.y)/16384.0f;
-	buff_z[tick] = ((float)accel_values.z)/16384.0f;
+	buff_x[tick] = ((float)accel_values.x);
+	buff_y[tick] = ((float)accel_values.y);
+	buff_z[tick] = ((float)accel_values.z);
 	#else
 	mpu_read_gyro(&gyro_values);
 	buff_x[tick] = ((float)gyro_values.x);
@@ -103,7 +103,7 @@ void sig_butterworth_filter_0_66_to_2_5(double*data, double *result)
 	
 }*/
 
-#define _1ST_STAGE_FILTER_MATLAB_4_TO_11
+#define _1ST_STAGE_FILTER_4_TO_11
 #define _2ND_STAGE_FILTER_MATLAB_0_66_TO_2_5
 
 #ifdef _1ST_STAGE_FILTER_4_TO_11

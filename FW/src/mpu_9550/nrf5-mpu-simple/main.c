@@ -8,7 +8,7 @@
 #include "SEGGER_RTT.h"
 
 
-#define TIMER_INTERVAL_ACCEL_UPDATE     APP_TIMER_TICKS(4, APP_TIMER_PRESCALER) // 10 ms intervals
+#define TIMER_INTERVAL_ACCEL_UPDATE     APP_TIMER_TICKS(5, APP_TIMER_PRESCALER) // 10 ms intervals
 
 
 extern void on_adv_evt(ble_adv_evt_t ble_adv_evt);
