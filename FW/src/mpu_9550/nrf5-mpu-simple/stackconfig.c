@@ -10,7 +10,7 @@ ble_uuid_t m_adv_uuids[] = {{BLE_UUID_HEART_RATE_SERVICE,         BLE_UUID_TYPE_
 ble_gap_adv_params_t m_adv_params;   
 extern ble_advdata_t advdata;
 extern ble_advdata_manuf_data_t 				manuf_specific_data;
-extern uint8_t ad_data[3];
+extern uint8_t ad_data[5];
 
 /**@brief Function for starting advertising.
  */
@@ -41,9 +41,12 @@ void advertising_init(void)
 		
 		memset(&manuf_specific_data, 0, sizeof(manuf_specific_data));
 	  memset(ad_data,0,sizeof(ad_data));
-	  *ad_data = DEVICE_ID;
-		ad_data[1] = 78;
-		ad_data[2] = 3;
+	  ad_data[0] = 0;
+		ad_data[1] = 0;
+		ad_data[2] = 0;
+		ad_data[3] = 0;
+		ad_data[4] = 0;
+
     manuf_specific_data.data.p_data = ad_data;
     manuf_specific_data.data.size  = DEVICE_DATA_SIZE;
 		advdata.p_manuf_specific_data = &manuf_specific_data;
@@ -126,11 +129,11 @@ void ble_stack_init(void)
     APP_ERROR_CHECK(err_code);
 
     // Register with the SoftDevice handler module for BLE events.
-    err_code = softdevice_ble_evt_handler_set(ble_evt_dispatch);
-    APP_ERROR_CHECK(err_code);
+    //err_code = softdevice_ble_evt_handler_set(ble_evt_dispatch);
+   // APP_ERROR_CHECK(err_code);
 
     // Register with the SoftDevice handler module for BLE events.
-    err_code = softdevice_sys_evt_handler_set(sys_evt_dispatch);
-    APP_ERROR_CHECK(err_code);
+   // err_code = softdevice_sys_evt_handler_set(sys_evt_dispatch);
+   // APP_ERROR_CHECK(err_code);
 }
 

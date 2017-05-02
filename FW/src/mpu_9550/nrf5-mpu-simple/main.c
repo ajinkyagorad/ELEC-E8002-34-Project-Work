@@ -26,11 +26,11 @@ extern void mpu_setup(void);
 extern void uart_config(void);
 extern void sig_init(void);
 extern uint8_t sig_read_bpm(uint16_t tick);
-extern uint8_t sig_calculate_bpm();
+extern uint8_t sig_calculate_bpm(uint8_t* ad_data);
 
 ble_advdata_t advdata;
 ble_advdata_manuf_data_t 				manuf_specific_data;
-uint8_t ad_data[3];
+uint8_t ad_data[5];
 
 bool bpm_update_flag = false;
 bool start_btn_flag = false;
@@ -64,7 +64,7 @@ static void application_timers_stop(void)
 */
 void timer_accel_update_handler(void * p_context)
 {
-	  if(tick >=400){
+	  if(tick >=SAMPLE_SIZE){
 				application_timers_stop();
 				bpm_update_flag = true;
 		}else{
@@ -96,7 +96,6 @@ static void timers_init(void)
 void sleep_mode_enter(void)
 {
     uint32_t err_code;
-
     // Go to system-off mode (this function will not return; wakeup will cause a reset).
     err_code = sd_power_system_off();
     APP_ERROR_CHECK(err_code);
@@ -137,25 +136,13 @@ int main(void)
 	  advertising_start();
 	  int ii = 0;
 	  printf(" start... \r\n");
-	  uint8_t * p_is_nested_critical_region = 0;
+	
 
     for (;;)
     {
         if(bpm_update_flag == true)
         {
-				#ifdef INCLUDE_THIS
-					sd_nvic_critical_region_enter(p_is_nested_critical_region);
-					  SEGGER_RTT_printf(0," ---------------------------------------------------------\r\n");
-						 for(ii = 0; ii < 1024; ii++){
-							 SEGGER_RTT_printf(0,"%d: %05d, %05d, %05d \r\n",ii, accel_values[ii].x, accel_values[ii].y, accel_values[ii].z);
-							 nrf_delay_ms(10);
-						 }
-						SEGGER_RTT_printf(0," ---------------------------end----------------------------\r\n");
-					 sd_nvic_critical_region_exit(0); 
-				#endif
-					 
-					  ad_data[BPM_OFFSET] = sig_calculate_bpm(); 
-					   printf(" bpm : %d\r\n", ad_data[BPM_OFFSET]);
+					  sig_calculate_bpm(ad_data); 
 					  advertising_data_update();
 
 					  tick = 0;

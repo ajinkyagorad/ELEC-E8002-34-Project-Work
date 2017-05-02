@@ -2,12 +2,25 @@
 #include "SEGGER_RTT.h"
 #include <math.h>
 
-#define MIN_TH 1e-3
-#define MAX_TH 6e-3
-#define MAX_SLOP_SCAN 6
-#define MIN_SPECING 40
+#define ACCEL
+#ifdef ACCEL
+//#define MIN_TH 1000
+//#define MIN_TH 2.3e+6
+//#define MIN_TH 400
+//USE WITH _1ST_STAGE_FILTER_CLH
+//#define MIN_TH 300000
+//USE WITH _1ST_STAGE_FILTER_CLH
+#define MIN_TH 10
+#else
+#define MIN_TH 0.5
+#define MAX_TH 500
+#endif
+#define SCAN_WINDOW 6
+#define MIN_SPECING 70
 #define MAX_SPECING 255
- 
+
+extern uint16_t tick;
+
 typedef struct{
   double magnitude;
 	double index;
@@ -15,13 +28,15 @@ typedef struct{
 }pick_t;
 
 uint8_t bpm;
-double buff_x[SAMPLE_SIZE];
-double buff_y[SAMPLE_SIZE];
-double buff_z[SAMPLE_SIZE];
-double R[SAMPLE_SIZE];
-double Xf[SAMPLE_SIZE];
-//accel_values_t accel_values;
+int16_t buff_x[SAMPLE_SIZE];
+int16_t buff_y[SAMPLE_SIZE];
+int16_t buff_z[SAMPLE_SIZE];
+#ifdef ACCEL
+accel_values_t accel_values;
+#else
 gyro_values_t gyro_values;
+#endif
+ 
 /**@brief function initialize module parameters
  */
 void sig_init(void){
@@ -34,17 +49,105 @@ void sig_init(void){
  */
 void sig_read_bpm(uint16_t tick){
 	
-	//mpu_read_accel(&accel_values);
+	#ifdef ACCEL
+	mpu_read_accel(&accel_values);
+	buff_x[tick] = (accel_values.x);
+	buff_y[tick] = (accel_values.y);
+	buff_z[tick] = (accel_values.z);
+	#else
 	mpu_read_gyro(&gyro_values);
-	buff_x[tick] = ((float)gyro_values.x);///16384.0f;
-	buff_y[tick] = ((float)gyro_values.y);///16384.0f;
-	buff_z[tick] = ((float)gyro_values.z);///16384.0f;
-	/*buff_x[tick] = ((float)accel_values.x)/16384.0f;
-	buff_y[tick] = ((float)accel_values.y)/16384.0f;
-	buff_z[tick] = ((float)accel_values.z)/16384.0f;
-	*/
+	buff_x[tick] = (gyro_values.x);
+	buff_y[tick] = (gyro_values.y);
+	buff_z[tick] = (gyro_values.z);
+	#endif
+	
 
 }
+
+
+unsigned char rtIsInf(double value)
+{
+  return ((value==1.79769313486231571e+308) ? 1U : 0U);
+}
+
+void filter(double *b, double *a, double *x, double *y)
+{
+  double a1;
+  int k;
+  double dbuffer[3];
+  int j;
+  a1 = a[0];
+  if ((!((!rtIsInf(a[0])))) || (a[0] == 0.0) || (!(a[0] !=
+        1.0))) {
+  } else {
+    for (k = 0; k < 3; k++) {
+      b[k] /= a1;
+    }
+
+    for (k = 0; k < 2; k++) {
+      a[k + 1] /= a1;
+    }
+
+    a[0] = 1.0;
+  }
+
+  for (k = 0; k < 2; k++) {
+    dbuffer[k + 1] = 0.0;
+  }
+
+  for (j = 0; j < SAMPLE_SIZE; j++) {
+    for (k = 0; k < 2; k++) {
+      dbuffer[k] = dbuffer[k + 1];
+    }
+
+    dbuffer[2] = 0.0;
+    for (k = 0; k < 3; k++) {
+      dbuffer[k] += x[j] * b[k];
+    }
+
+    for (k = 0; k < 2; k++) {
+      dbuffer[k + 1] -= dbuffer[0] * a[k + 1];
+    }
+
+    y[j] = dbuffer[0];
+  }
+}
+
+
+#define _1ST_STAGE_FILTER_CLH_4_TO_11
+#define _2ND_STAGE_FILTER_CLH_0_66_TO_2_5
+
+#ifdef _1ST_STAGE_FILTER_4_TO_11
+ //Referenced http://www-users.cs.york.ac.uk/~fisher/mkfilter/
+void sig_butterworth_filter_4_to_11(double *data, double *result)
+{
+	double* x;
+	double* y;
+	x = data;y = result;
+	for(int n=0;n<2;n++)y[n]=x[n];
+	for(int n=2;n<SAMPLE_SIZE;n++){
+		y[n] = (  1 * x[n- 2])
+     + (  2 * x[n- 1])
+     + (  1 * x[n- 0])
+
+     + ( -0.6135227659 * y[n- 2])
+     + (  1.5181325407 * y[n- 1]);
+	}
+	
+	memcpy(x, y, SAMPLE_SIZE * sizeof(double));
+	
+	x = data;y = result;
+  for(int n=0;n<2;n++)y[n]=x[n];
+	for(int n=2;n<SAMPLE_SIZE;n++){
+		y[n] = (  1 * x[n- 2])
+     + ( -2 * x[n- 1])
+     + (  1 * x[n- 0])
+
+     + ( -0.8371816513 * y[n- 2])
+     + (  1.8226949252 * y[n- 1]);
+	}
+}
+#elif defined(_1ST_STAGE_FILTER_4_TO_22)
 void sig_butterworth_filter_4_to_22(double *data, double *result)
 {
 	double* x;
@@ -62,121 +165,114 @@ void sig_butterworth_filter_4_to_22(double *data, double *result)
 				 + (  3.0878833813 * y[n- 3])
 				 + ( -4.9675926050 * y[n- 2])
 				 + (  3.6108197545 * y[n- 1]);
-			
 			 }
+	
+	
 }
-// Referenced http://www-users.cs.york.ac.uk/~fisher/mkfilter/
+
+#elif defined(_1ST_STAGE_FILTER_CLH_4_TO_11)
+
 void sig_butterworth_filter_4_to_11(double *data, double *result)
 {
-	double* x;
-	double* y;
-	x = data;y = result;
-	for(int n=0;n<4;n++)y[n]=(double)x[n];
-	for(int n=4;n<SAMPLE_SIZE;n++){
-		 y[n] = (  1 * x[n- 4])
-     + (  0 * x[n- 3])
-     + ( -2 * x[n- 2])
-     + (  0 * x[n- 1])
-     + (  1 * x[n- 0])
+  double dv0[3];
+  double dv1[3];
+  int i0;
+  static const double dv2[3] = { 0.9149691441130825, -1.829938288226165,
+    0.9149691441130825 };
 
-     + ( -0.4504454301 * y[n- 4])
-     + (  2.0313852278 * y[n- 3])
-     + ( -3.6679952325 * y[n- 2])
-     + (  3.0818060650 * y[n- 1]);
-		 
-			 }
+  static const double dv3[3] = { 1.0, -1.8226949251963078, 0.8371816512560224 };
+
+
+  static const double dv4[3] = { 0.023847556298910971, 0.047695112597821943,
+    0.023847556298910971 };
+
+  static const double dv5[3] = { 1.0, -1.518132540717628, 0.61352276591327193 };
+
+  for (i0 = 0; i0 < 3; i0++) {
+    dv0[i0] = dv2[i0];
+    dv1[i0] = dv3[i0];
+  }
+
+  filter(dv0, dv1, data, result);
+  for (i0 = 0; i0 < 3; i0++) {
+    dv0[i0] = dv4[i0];
+    dv1[i0] = dv5[i0];
+  }
+
+  memcpy(data, result, SAMPLE_SIZE * sizeof(double));
+  filter(dv0, dv1, data, result);
 }
+#endif
 
-/*void sig_butterworth_filter_4_to_11(float *X, double *Y)
-{
-	int j,k;
-	double dbuffer[5]={0,0,0,0,0};
-	static const double dv0[5] = { 0.0020805671354598072, 0.0,
-    -0.0041611342709196144, 0.0, 0.0020805671354598072 };
-	static const double dv1[5] = { 1.0, -3.8478114968688084, 5.5721601378375674,
-    -3.5994720753697242, 0.87521454825368439 };
 
-		 for (k = 0; k < 4; k++) {
-    dbuffer[k + 1] = 0.0;
-  }
-
-  for (j = 0; j < SAMPLE_SIZE; j++) {
-    for (k = 0; k < 4; k++) {
-      dbuffer[k] = dbuffer[k + 1];
-    }
-
-    dbuffer[4] = 0.0;
-    for (k = 0; k < 5; k++) {
-      dbuffer[k] += X[j] * dv0[k];
-    }
-
-    for (k = 0; k < 4; k++) {
-      dbuffer[k + 1] -= dbuffer[0] * dv1[k + 1];
-    }
-
-    Y[j] = dbuffer[0];
-  }
-}
-
-void sig_butterworth_filter_0_66_to_2_5(double*X, double *Y)
-{
-	int k,j;
-	double dbuffer[5];
-    static const double dv0[5] = { 0.0008023531890466889, 0.0,
-    -0.0016047063780933778, 0.0, 0.0008023531890466889 };
-
-  static const double dv1[5] = { 1.0, -3.9151028964225354, 5.7518393939858576,
-    -3.7582371566656905, 0.9215032055789143 };
-
-  for (k = 0; k < 4; k++) {
-    dbuffer[k + 1] = 0.0;
-  }
-
-  for (j = 0; j < 402; j++) {
-    for (k = 0; k < 4; k++) {
-      dbuffer[k] = dbuffer[k + 1];
-    }
-
-    dbuffer[4] = 0.0;
-    for (k = 0; k < 5; k++) {
-      dbuffer[k] += X[j] * dv0[k];
-    }
-
-    for (k = 0; k < 4; k++) {
-      dbuffer[k + 1] -= dbuffer[0] * dv1[k + 1];
-    }
-
-    Y[j] = dbuffer[0];
-  }
-}
-*/
+#ifdef _2ND_STAGE_FILTER_0_66_TO_2_5
 void sig_butterworth_filter_0_66_to_2_5(double*data, double *result)
 {
-  //memcpy(result,data,400U *sizeof(result));
-	//memset(&result,0,sizeof(result));
+		  double* x;
+			double* y;
+			x = data;y = result;
+			for(int n=0;n<2;n++)y[n]=x[n];
+			for(int n=2;n<SAMPLE_SIZE;n++){
+			y[n] = (  1 * x[n- 2])
+					 + (  2 * x[n- 1])
+					 + (  1 * x[n- 0])
 
-	double * x, * y;
-	x = data;y = result;
-	for(int n=0;n<4;n++)y[n]=(double)x[n];
-	for(int n=4;n<SAMPLE_SIZE;n++){
-		y[n] = (  1 * x[n- 4])
-				 + (  0 * x[n- 3])
-				 + ( -2 * x[n- 2])
-				 + (  0 * x[n- 1])
-				 + (  1 * x[n- 0])
+					 + ( -0.8948743446 * y[n- 2])
+					 + (  1.8890330794 * y[n- 1]);
+			}
+			
+			memcpy(x, y, SAMPLE_SIZE * sizeof(double));
+			
+			x = data;y = result;
+			for(int n=0;n<2;n++)y[n]=x[n];
+			for(int n=2;n<SAMPLE_SIZE;n++){
+			y[n] = (  1 * x[n- 2])
+					 + ( -2 * x[n- 1])
+					 + (  1 * x[n- 0])
 
-				 + ( -0.9215032056 * y[n- 4])
-				 + (  3.7582371567 * y[n- 3])
-				 + ( -5.7518393940 * y[n- 2])
-				 + (  3.9151028964 * y[n- 1]);
-			 }
-	
-	
+					 + ( -0.9780305085 * y[n- 2])
+					 + (  1.9777864838 * y[n- 1]);
+			}
 }
+
+#elif defined(_2ND_STAGE_FILTER_CLH_0_66_TO_2_5)
+
+void sig_butterworth_filter_0_66_to_2_5(double *data, double *result)
+{
+  double dv0[3];
+  double dv1[3];
+  int i0;
+  static const double dv2[3] = { 0.98544543731661882, -1.9708908746332376,
+    0.98544543731661882 };
+
+  static const double dv3[3] = { 1.0, -1.9706790281185969, 0.97110272114787866 };
+
+
+  static const double dv4[3] = { 0.0014603163055277313, 0.0029206326110554626,
+    0.0014603163055277313 };
+
+  static const double dv5[3] = { 1.0, -1.8890330793945247, 0.89487434461663562 };
+
+  for (i0 = 0; i0 < 3; i0++) {
+    dv0[i0] = dv2[i0];
+    dv1[i0] = dv3[i0];
+  }
+
+  filter(dv0, dv1, data, result);
+  for (i0 = 0; i0 < 3; i0++) {
+    dv0[i0] = dv4[i0];
+    dv1[i0] = dv5[i0];
+  }
+
+  memcpy(data, result, SAMPLE_SIZE * sizeof(double));
+  filter(dv0, dv1, data, result);
+}
+
+#endif
 void sig_dot_x_acceleration(double *x, double *R){
   int ii = 0;  
 	for(ii = 0; ii < SAMPLE_SIZE ; ii++)
-	 R[ii] += pow(x[ii],2);
+	 R[ii] += x[ii]*x[ii];
 } 
 
 void sig_resultant_acceleration(double *R){
@@ -226,71 +322,127 @@ int ii;
     nrf_delay_ms(5);
 	}
 }
-void sig_print_all(){
+void sig_print_all(double * R){
 int ii;
 	for(ii = 0;ii<SAMPLE_SIZE;ii++){
-		printf("%.2f,%.2f,%.2f,%.2f\r\n",buff_x[ii],buff_y[ii],buff_z[ii],Xf[ii]/10000.0);// Divide to scale on plot
+		//printf("%d, %d,%d,%d,%.5f\r\n",0,(int)buff_x[ii], (int)buff_y[ii],(int)buff_z[ii],R[ii]);
+		printf("%.5f\r\n",R[ii]);
 		nrf_delay_ms(5);
 	}
 }
+double sig_get_mean(double* vector,uint16_t SIZE)
+{
+    uint16_t cc;
+    long double result=0;
+
+    for(cc = 0;cc<SIZE;cc++)
+        result += *(vector+cc);
+    return  result/SIZE;
+}
+
+double sig_get_mean_wr(int16_t* data, double* vector,uint16_t SIZE)
+{
+    uint16_t cc;
+    long double result=0;
+
+    for(cc = 0;cc<SIZE;cc++){
+				vector[cc] = (double)data[cc];
+        result += *(vector+cc);
+		}
+    return  result/SIZE;
+}
+  double Xf[SAMPLE_SIZE];
+	double R[SAMPLE_SIZE];
 uint8_t sig_calculate_bpm(uint8_t* ad_data){
 	
 	int ii;		
-  
-	
+
 	memset(Xf,0,sizeof(Xf));
   memset(R,0,sizeof(R));
 	
 	
-  sig_butterworth_filter_4_to_22(buff_x, Xf);
+	double mean = sig_get_mean_wr(buff_x,R,SAMPLE_SIZE);
+	for(ii=0;ii < SAMPLE_SIZE; ii++)
+		R[ii] = R[ii]- mean;
+	#if defined( _1ST_STAGE_FILTER_4_TO_11) || defined(_1ST_STAGE_FILTER_CLH_4_TO_11)
+  sig_butterworth_filter_4_to_11(R, Xf);
+	#elif defined(_1ST_STAGE_FILTER_4_TO_22)
+	sig_butterworth_filter_4_to_22(R, Xf);
+	#else
+	#error "choose filter ";
+	#endif
+	memset(R,0,sizeof(R));
 	sig_dot_x_acceleration(Xf,R);
-
   memset(Xf,0,sizeof(Xf));
-	sig_butterworth_filter_4_to_22(buff_y, Xf);
+	
+	mean = sig_get_mean_wr(buff_y,R,SAMPLE_SIZE);
+	for(ii=0;ii < SAMPLE_SIZE; ii++)
+		R[ii] = R[ii]- mean;
+	#if defined( _1ST_STAGE_FILTER_4_TO_11) || defined(_1ST_STAGE_FILTER_CLH_4_TO_11)
+  sig_butterworth_filter_4_to_11(R, Xf);
+	#elif defined(_1ST_STAGE_FILTER_4_TO_22)
+	sig_butterworth_filter_4_to_22(R, Xf);
+	#else
+	#error "choose filter ";
+	#endif
+	memset(R,0,sizeof(R));
 	sig_dot_x_acceleration(Xf,R);
-
   memset(Xf,0,sizeof(Xf));
-	sig_butterworth_filter_4_to_22(buff_z, Xf);
+	
+  mean = sig_get_mean_wr(buff_z,R,SAMPLE_SIZE);
+	for(ii=0;ii < SAMPLE_SIZE; ii++)
+		R[ii] = R[ii]- mean;
+	#if defined( _1ST_STAGE_FILTER_4_TO_11) || defined(_1ST_STAGE_FILTER_CLH_4_TO_11)
+  sig_butterworth_filter_4_to_11(R, Xf);
+	#elif defined(_1ST_STAGE_FILTER_4_TO_22)
+	sig_butterworth_filter_4_to_22(R, Xf);
+	#else
+	#error "choose filter ";
+	#endif
+	memset(R,0,sizeof(R));
 	sig_dot_x_acceleration(Xf,R);
+  memset(Xf,0,sizeof(Xf));
 
 	sig_resultant_acceleration(R);
-	
+
 
 	memset(Xf,0,sizeof(Xf));
 	double * filtered_signal = Xf;
-
+	mean = sig_get_mean(R,SAMPLE_SIZE);
+	for(ii=0;ii < SAMPLE_SIZE; ii++)
+		R[ii] = R[ii] - mean;
 	sig_butterworth_filter_0_66_to_2_5(R, filtered_signal);
-  sig_print_all();
-	//sig_print(R, SAMPLE_SIZE);
-	
+  sig_print_all(filtered_signal);
+  
+		
 	pick_t pick[10]; 
 	memset(pick,0,sizeof(pick));
 	
 	int16_t kk = 0;
 	int8_t slop[SAMPLE_SIZE];
 	memset(slop,0,sizeof(slop));
-	double val_previous = filtered_signal[0], val_current = 0;
+	double val_previous = filtered_signal[0], val_current = 0, previous_index = 0;
  
 	for(ii = 0; ii < SAMPLE_SIZE; ii++){
-		 if (filtered_signal[ii] <  MIN_TH || filtered_signal[ii] >  MAX_TH ) continue;
-    
-		 val_current = filtered_signal[ii];
+		 if (filtered_signal[ii] <  MIN_TH) continue;
+     if ((ii - previous_index)!=1){
+		      previous_index = ii;
+			    val_previous   = filtered_signal[ii]; 
+			    continue;
+		 }
+		 previous_index = ii;
+		 val_current 		= filtered_signal[ii];
 	  
 		 slop[ii] = ((val_current-val_previous)>0)?1:(((val_current-val_previous)<0)?-1:0);
     
-		 if(slop[ii]==0 || slop[ii]*slop[ii-1] < 0){
+		 if( slop[ii]<=0 && slop[ii-1] > 0){
 			if(ii == 1) continue;
 			
 			pick[kk].index = ii;
-			
-			if(slop[ii-1] > 0){
-			 pick[kk].magnitude = val_current;
-			 pick[kk].type = 1;
-			}else if(slop[ii-1] < 0){
-			 pick[kk].magnitude = val_current;
-			 pick[kk].type = -1;
-			}else continue;
-			if(++kk >= 8)break;
+			pick[kk].magnitude = val_current;
+			pick[kk].type = 1;
+			 
+			if(++kk >= 6)break;
 			
 		}
 		
@@ -299,21 +451,29 @@ uint8_t sig_calculate_bpm(uint8_t* ad_data){
 	
 	
 	
-	uint16_t cnt_slop = 0;
+
 	for(ii = 0; ii < kk; ii++){
+		  uint16_t cnt_slop_m = 0;
+			uint16_t cnt_slop_p = 0;
 			uint16_t index = pick[ii].index;
 			int jj;
-			for(jj = 0; jj < MAX_SLOP_SCAN; jj++)   
-					if(index + jj < SAMPLE_SIZE)if(slop[index+jj] > 0)cnt_slop++;
+			for(jj = 0; jj < SCAN_WINDOW; jj++){   
+					if(index + jj < SAMPLE_SIZE)if(slop[index+jj] > 0)cnt_slop_m++;
+					if(index - jj >= 0)if(slop[index-jj] < 0)cnt_slop_p++;
+			}
 							
-			if(cnt_slop  > 1){
+			if(cnt_slop_m  > 3 
+				|| cnt_slop_p  > 3
+				||((ii<kk-1)
+			  &&(pick[ii].magnitude <  pick[ii+1].magnitude)
+			  &&((pick[ii+1].index - pick[ii].index) < MIN_SPECING ))
+			  ){
 				 for(jj = ii; jj < kk-1; jj++){
 						 pick[jj].index = pick[jj+1].index ;
 						 pick[jj].magnitude =  pick[jj+1].magnitude;
 						 pick[jj].type =  pick[jj].type;
 				 }
 						 kk = jj-1;
-						 cnt_slop = 0;
 			 }
 	}
 							 
@@ -323,7 +483,9 @@ uint8_t sig_calculate_bpm(uint8_t* ad_data){
     int16_t  previous_maxima = -1;
     uint16_t count_diff = 0;
     
-    int16_t difference[10];
+    int16_t difference[5];
+	  double amp = 0;
+	  double cnt_amp = 0;
 
 	  memset(difference,0,sizeof(difference));
 	  
@@ -341,16 +503,15 @@ uint8_t sig_calculate_bpm(uint8_t* ad_data){
            if((pick[current_maxima].index - pick[previous_maxima].index) < MIN_SPECING){
                if(pick[previous_maxima].type ==1 && pick[current_maxima].magnitude > pick[previous_maxima].magnitude && difference[count_diff-1]){
                     difference[count_diff-1] += pick[current_maxima].index - pick[previous_maxima].index;
+								    amp -= pick[previous_maxima].magnitude;
+								    amp += pick[current_maxima].magnitude;
                     previous_maxima = current_maxima;
                }
              continue;
 					 }
 					 
-					 if((pick[current_maxima].index - pick[previous_maxima].index) > MAX_SPECING){
-						 //TODO: not sure about this
-						    previous_maxima = current_maxima;
-             continue;
-					 }
+				      amp += pick[current_maxima].magnitude;
+              cnt_amp ++;					 
              
            difference[count_diff] = pick[current_maxima].index - pick[previous_maxima].index;
            count_diff = count_diff + 1;
@@ -359,12 +520,13 @@ uint8_t sig_calculate_bpm(uint8_t* ad_data){
 				 }
 				 else if (pick[ii].type == -1){
             
-             ASSERT(pick[ii].type > 1)
+             ASSERT(pick[ii].type > 0)
 				 }
         
         
 			 }
     
+	  *(ad_data + STRENGTH_OFFSET) = (uint8_t)(amp/cnt_amp);
 			 
 		uint8_t cnt = 0;
     double gap = 0;
@@ -376,8 +538,26 @@ uint8_t sig_calculate_bpm(uint8_t* ad_data){
 						if(cnt > 2)break;
           }
 		}
+    if(difference[count_diff-1] < 70)
+			ad_data[0] = 0;
+		else
+		  ad_data[0] = difference[count_diff-1];
+	
+		if(difference[count_diff-2] < 70)
+			ad_data[1] = 0;
+		else
+		  ad_data[1] = difference[count_diff-2];
 		
+		if(difference[count_diff-3] < 70)
+			ad_data[2] = 0;
+		else
+		  ad_data[2] = difference[count_diff-3];	
+		
+		if((ad_data[0]==0 && ad_data[1]== 0) 
+			|| (ad_data[1] == 0 && ad_data[2] == 0))
+					memset(ad_data,0,5);
+
+	
     return (count_diff > 0 && gap > 0)?round((cnt*60* 200)/(gap)):0xff;
 	
 }
-
