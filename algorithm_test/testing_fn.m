@@ -1,6 +1,6 @@
 
 
-    A1 = csvread('testdata3.csv');
+    A1 = csvread('testdata6.csv');
 %    A1 = coeff * csvread('accelerometer_reading_for_about_1min_18sec_in_50ms_interval_device_status_on_chest.csv',1);
 
     
@@ -15,7 +15,6 @@
     Z = A1(:,4);
     K = A1(:,5);
     clear max clear index
-    [maxValueK,indexMaxK] = max(K);
     %Ynorm = Y - averaging_filter(Y);
     L = length(X)
     T = (0:L-1) * dt;

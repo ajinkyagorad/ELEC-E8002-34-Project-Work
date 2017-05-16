@@ -212,6 +212,23 @@ void sig_butterworth_filter_0_66_to_2_5(double*data, double *result)
 		  double* x;
 			double* y;
 			x = data;y = result;
+	
+	
+		x = data;y = result;
+			for(int n=0;n<4;n++)y[n]=x[n];
+			for(int n=4;n<SAMPLE_SIZE;n++){
+		y[n] = (  1 * x[n- 4])
+     + (  0 * x[n- 3])
+     + ( -2 * x[n- 2])
+     + (  0 * x[n- 1])
+     + (  1 * x[n- 0])
+
+     + ( -0.9149758348 * y[n- 4])
+     + (  3.7388404862 * y[n- 3])
+     + ( -5.7326500065 * y[n- 2])
+     + (  3.9087838985 * y[n- 1]);
+			}
+			
 			for(int n=0;n<2;n++)y[n]=x[n];
 			for(int n=2;n<SAMPLE_SIZE;n++){
 			y[n] = (  1 * x[n- 2])
@@ -326,7 +343,7 @@ int ii;
 void sig_print_all(double * R){
 int ii;
 	for(ii = 0;ii<SAMPLE_SIZE;ii++){
-		//printf("%d, %d,%d,%d,%.5f\r\n",0,(int)buff_x[ii], (int)buff_y[ii],(int)buff_z[ii],R[ii]);
+		//printf("%d,%d,%d,%d,%.5f\r\n",ii,(int)buff_x[ii], (int)buff_y[ii],(int)buff_z[ii],R[ii]);
 		printf("%.5f\r\n",R[ii]);
 		nrf_delay_ms(5);
 	}
